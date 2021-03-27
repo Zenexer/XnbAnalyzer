@@ -1,0 +1,7 @@
+.vs/
+*.suo
+bin/
+obj/
+
+[Tt]humbs.db
+[Dd]esktop.ini
