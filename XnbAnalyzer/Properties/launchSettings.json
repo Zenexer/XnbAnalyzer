@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "XnbAnalzyer": {
+      "commandName": "Project",
+      "commandLineArgs": "unpack dir -r packed unpacked"
+    }
+  }
+}
