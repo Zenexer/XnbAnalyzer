@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using XnbAnalyzer.XMemCompress;
 using XnbAnalyzer.Xnb.Content;
+using XnbAnalyzer.Xnb.Content.DNA;
 
 namespace XnbAnalyzer.Xnb
 {
@@ -175,6 +176,8 @@ namespace XnbAnalyzer.Xnb
                     break;
 
                 case Model _:
+                case Effect _:
+                case AnimationClip _:
                     var options = new JsonSerializerOptions { WriteIndented = true };
 
                     using (var tx = File.Create(Path.Combine(dir, Asset.GetType().Name + ".json")))
