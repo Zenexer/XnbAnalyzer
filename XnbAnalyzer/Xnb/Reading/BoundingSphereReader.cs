@@ -15,7 +15,7 @@ namespace XnbAnalyzer.Xnb.Reading
         {
         }
 
-        public override BoundingSphere Read() => new BoundingSphere(
+        public override BoundingSphere Read() => new(
             Rx.ReadVector3(),
             Rx.ReadSingle()
         );

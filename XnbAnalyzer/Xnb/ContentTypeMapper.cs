@@ -11,17 +11,17 @@ namespace XnbAnalyzer.Xnb
 {
     public class ContentTypeMapper
     {
-        private readonly Dictionary<string, Type> _writerTypes = new Dictionary<string, Type>();
-        private readonly Dictionary<string, Type> _readerTypes = new Dictionary<string, Type>();
-        private readonly Dictionary<string, Type> _contentTypes = new Dictionary<string, Type>();
-        private readonly Dictionary<string, string> _xnaTypeNames = new Dictionary<string, string>();
-        private readonly HashSet<string> _primitives = new HashSet<string>();
+        private readonly Dictionary<string, Type> _writerTypes = new();
+        private readonly Dictionary<string, Type> _readerTypes = new();
+        private readonly Dictionary<string, Type> _contentTypes = new();
+        private readonly Dictionary<string, string> _xnaTypeNames = new();
+        private readonly HashSet<string> _primitives = new();
 
-        private readonly ConditionalWeakTable<XnbStreamReader, ConditionalWeakTable<TypeDefinition, Reader>> _readers = new ConditionalWeakTable<XnbStreamReader, ConditionalWeakTable<TypeDefinition, Reader>>();
-        private readonly ConditionalWeakTable<XnbStreamWriter, ConditionalWeakTable<TypeDefinition, Writer>> _writers = new ConditionalWeakTable<XnbStreamWriter, ConditionalWeakTable<TypeDefinition, Writer>>();
-        private readonly ConditionalWeakTable<XnbStreamReader, ConditionalWeakTable<Type, Reader>> _genericReaders = new ConditionalWeakTable<XnbStreamReader, ConditionalWeakTable<Type, Reader>>();
-        private readonly ConditionalWeakTable<XnbStreamWriter, ConditionalWeakTable<Type, Writer>> _genericWriters = new ConditionalWeakTable<XnbStreamWriter, ConditionalWeakTable<Type, Writer>>();
-        private readonly ConditionalWeakTable<object, ConditionalWeakTable<Type, object>> _instances = new ConditionalWeakTable<object, ConditionalWeakTable<Type, object>>();
+        private readonly ConditionalWeakTable<XnbStreamReader, ConditionalWeakTable<TypeDefinition, Reader>> _readers = new();
+        private readonly ConditionalWeakTable<XnbStreamWriter, ConditionalWeakTable<TypeDefinition, Writer>> _writers = new();
+        private readonly ConditionalWeakTable<XnbStreamReader, ConditionalWeakTable<Type, Reader>> _genericReaders = new();
+        private readonly ConditionalWeakTable<XnbStreamWriter, ConditionalWeakTable<Type, Writer>> _genericWriters = new();
+        private readonly ConditionalWeakTable<object, ConditionalWeakTable<Type, object>> _instances = new();
 
         public static ContentTypeMapper Instance { get; } = new ContentTypeMapper();
 

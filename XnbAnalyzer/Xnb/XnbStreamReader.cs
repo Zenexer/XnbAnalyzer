@@ -151,7 +151,7 @@ namespace XnbAnalyzer.Xnb
                 throw new XnbFormatException($"Expected to read {typeof(T).FullName}, but got {type.FullName}");
             }
 
-            return (T)ContentTypeMapper.Instance.GetReader(this, typeDefinition).ReadObject();
+            return (T?)ContentTypeMapper.Instance.GetReader(this, typeDefinition).ReadObject();
         }
 
         public T ReadDirect<T>()

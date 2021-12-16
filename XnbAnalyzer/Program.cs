@@ -47,7 +47,10 @@ namespace XnbAnalyzer
 
                 public async Task UnpackFolderAsync(string packedDir, string unpackedDir, CancellationToken cancellationToken)
                 {
-                    Directory.CreateDirectory(packedDir);
+                    if (!Directory.Exists(packedDir))
+                    {
+                        throw new Exception($"Directory doesn't exist: {packedDir}; current directory: {Environment.CurrentDirectory}");
+                    }
 
                     foreach (var entry in Directory.GetFileSystemEntries(packedDir))
                     {
