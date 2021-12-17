@@ -79,44 +79,65 @@ namespace XnbAnalyzer.Xnb.Content
             return image;
         }
 
-        private static void Rgb565ToRgba32(ReadOnlySpan<byte> rgb565, ref Rgba32 rgba32)
+        private static int ReadRgb565(ReadOnlySpan<byte> bytes) => (bytes[0] << 8) | bytes[1];
+
+        private static void Rgb565ToRgba32(int rgb565, ref Rgba32 rgba32, byte alpha = 0xff)
         {
-            var n = (rgb565[0] << 8) | rgb565[1];
+            var r = (rgb565 >> 11) & 0b11111;
+            var g = (rgb565 >> 5) & 0b111111;
+            var b = rgb565 & 0b11111;
 
-            var r = (n & 0b11111_000000_00000) >> 8;
-            var g = (n & 0b00000_111111_00000) >> 3;
-            var b = (n & 0b00000_000000_11111) << 3;
+            r = (r << 3) | r >> 2;
+            g = (g << 2) | g >> 3;
+            b = (b << 3) | b >> 2;
 
-            rgba32.R = (byte)(r | (r >> 5));
-            rgba32.G = (byte)(g | (g >> 6));
-            rgba32.B = (byte)(b | (b >> 5));
+            rgba32.R = (byte)r;
+            rgba32.G = (byte)g;
+            rgba32.B = (byte)b;
+            rgba32.A = alpha;
         }
 
-        private static long ReadPackedData(ReadOnlySpan<byte> data)
+        private static void ReadPackedData2bpp(ReadOnlySpan<byte> packed, Span<byte> unpacked)
         {
-            var value = 0L;
-
-            for (var i = data.Length - 1; i >= 0; i--)
+            var i = 0;
+            foreach (var b in packed)
             {
-                value = (value << 8) | data[i];
+                unpacked[i++] = unchecked((byte)((b >> 6) & 0b11));
+                unpacked[i++] = unchecked((byte)((b >> 4) & 0b11));
+                unpacked[i++] = unchecked((byte)((b >> 2) & 0b11));
+                unpacked[i++] = unchecked((byte)((b >> 0) & 0b11));
+            }
+        }
+
+        private static void ReadPackedData3bpp(ReadOnlySpan<byte> packed, Span<byte> unpacked)
+        {
+            if (packed.Length % 3 != 0)
+            {
+                throw new ArgumentException($"{nameof(packed)}'s length must be a multiple of 3", nameof(packed));
             }
 
-            return value;
+
+            var u = 0;
+            for (var p = 0; p < packed.Length; )
+            {
+                // 0001_1122 2333_4445 5566_6777
+                var tmp = unchecked((packed[p++] << 16) | (packed[p++] << 8) | packed[p++]);
+
+                for (var shift = 21; shift >= 0; shift -= 3)
+                {
+                    unpacked[u++] = unchecked((byte)((tmp >> shift) & 0b111));
+                }
+            }
         }
 
         // Best reference I've found: https://github.com/divVerent/s2tc/wiki/FileFormats
+        // The reserved values need to be calculated per https://en.wikipedia.org/wiki/S3_Texture_Compression
         private static Image<Rgba32> ToImage_Dxt1(int width, int height, ReadOnlySpan<byte> data)
         {
             var size = width * height;
             Span<Rgba32> pixels = size <= 1024 ? stackalloc Rgba32[size] : new Rgba32[size];
-
-            Span<Rgba32> colors = stackalloc[]
-            {
-                default,  // c0
-                default,  // c1
-                default,  // reserved
-                new Rgba32(0x00, 0x00, 0x00, 0x00),  // transparent
-            };
+            Span<byte> colorIndices = stackalloc byte[16];
+            Span<Rgba32> colors = stackalloc Rgba32[4];
 
             var blockW = (int)Math.Ceiling(width / 4.0);
             var blockH = (int)Math.Ceiling(height / 4.0);
@@ -131,15 +152,36 @@ namespace XnbAnalyzer.Xnb.Content
 
                 var colorBlock = data[0..8];
 
-                Rgb565ToRgba32(colorBlock[0..2], ref colors[0]);
-                Rgb565ToRgba32(colorBlock[2..4], ref colors[1]);
+                int c0, c1, c2, c3;
+                byte c3alpha;
+
+                c0 = ReadRgb565(colorBlock[0..2]);
+                c1 = ReadRgb565(colorBlock[2..4]);
+
+                if (c0 > c1)
+                {
+                    c2 = (c0 * 2 + c1 * 1) / 3;
+                    c3 = (c0 * 1 + c1 * 2) / 3;
+                    c3alpha = 0xff;
+                }
+                else
+                {
+                    c2 = (c0 + c1) / 2;
+                    c3 = 0;
+                    c3alpha = 0;
+                }
+
+                Rgb565ToRgba32(c0, ref colors[0]);
+                Rgb565ToRgba32(c1, ref colors[1]);
+                Rgb565ToRgba32(c2, ref colors[2]);
+                Rgb565ToRgba32(c3, ref colors[3], c3alpha);
 
                 var colorData = colorBlock[4..8];
 
-                var colorPacked = ReadPackedData(colorBlock[4..8]);
+                ReadPackedData2bpp(colorBlock[4..8], colorIndices);
 
                 // 16 pixels per block
-                for (var i = 0; i < 16; i++, colorPacked >>= 3)
+                for (var i = 0; i < 16; i++)
                 {
                     var x = startX + i % 4;
                     var y = startY + i / 4;
@@ -149,12 +191,7 @@ namespace XnbAnalyzer.Xnb.Content
                     }
 
                     var pixelIndex = y * width + x;
-                    var colorIndex = (int)colorPacked & 0b11;
-
-                    if (colorIndex == 2)
-                    {
-                        throw new XnbFormatException("Reserved color index used in DXT1");
-                    }
+                    var colorIndex = colorIndices[i];
 
                     pixels[pixelIndex] = colors[colorIndex];
                 }
@@ -169,14 +206,8 @@ namespace XnbAnalyzer.Xnb.Content
         private static Image<Rgba32> ToImage_Dxt3(int width, int height, ReadOnlySpan<byte> data)
         {
             Span<Rgba32> pixels = new Rgba32[width * height];
-
-            Span<Rgba32> colors = stackalloc[]
-            {
-                default,  // c0
-                default,  // c1
-                new Rgba32(0x00, 0xff, 0xff, 0xff),  // reserved
-                new Rgba32(0x00, 0x00, 0x00, 0x00),  // transparent
-            };
+            Span<byte> colorIndices = stackalloc byte[16];
+            Span<Rgba32> colors = stackalloc Rgba32[4];
 
             var blockW = (int)Math.Ceiling(width / 4.0);
             var blockH = (int)Math.Ceiling(height / 4.0);
@@ -192,17 +223,24 @@ namespace XnbAnalyzer.Xnb.Content
                 var alphaBlock = data[0..8];
                 var colorBlock = data[8..16];
 
-                Rgb565ToRgba32(colorBlock[0..2], ref colors[0]);
-                Rgb565ToRgba32(colorBlock[2..4], ref colors[1]);
+                var c0 = ReadRgb565(colorBlock[0..2]);
+                var c1 = ReadRgb565(colorBlock[2..4]);
+                var c2 = (c0 * 2 + c1 * 1) / 3;
+                var c3 = (c0 * 1 + c1 * 2) / 3;
+
+                Rgb565ToRgba32(c0, ref colors[0]);
+                Rgb565ToRgba32(c1, ref colors[1]);
+                Rgb565ToRgba32(c2, ref colors[2]);
+                Rgb565ToRgba32(c3, ref colors[3]);
 
                 var colorData = colorBlock[4..8];
 
-                var colorPacked = ReadPackedData(colorBlock[4..8]);
+                ReadPackedData2bpp(colorBlock[4..8], colorIndices);
 
                 // 16 pixels per block
                 for (var i = 0; i < 16; i++)
                 {
-                    var x = startX + i % 4;
+                    var x = startX + 4 - i % 4;
                     var y = startY + i / 4;
                     if (x >= width || y >= height)
                     {
@@ -210,15 +248,11 @@ namespace XnbAnalyzer.Xnb.Content
                     }
 
                     var pixelIndex = y * width + x;
-                    var colorIndex = (int)colorPacked & 0b11;
+                    var colorIndex = colorIndices[i];
+                    var color = colors[colorIndex];
+                    var alpha = (int)alphaBlock[7 - i / 2];
 
-                    if (colorIndex >= 2)
-                    {
-                        throw new XnbFormatException("Reserved color index used in DXT5");
-                    }
-                    var alpha = (int)alphaBlock[i / 2];
-
-                    if (i % 2 == 0)
+                    if (i % 2 == 1)
                     {
                         alpha >>= 4;
                     }
@@ -226,7 +260,7 @@ namespace XnbAnalyzer.Xnb.Content
                     alpha &= 0b1111;
                     alpha |= alpha << 4;
 
-                    pixels[pixelIndex] = colors[colorIndex] with { A = (byte)alpha };
+                    pixels[pixelIndex] = color with { A = (byte)alpha };
                 }
             }
 
@@ -237,6 +271,8 @@ namespace XnbAnalyzer.Xnb.Content
         private static Image<Rgba32> ToImage_Dxt5(int width, int height, ReadOnlySpan<byte> data)
         {
             Span<Rgba32> pixels = new Rgba32[width * height];
+            Span<byte> colorIndices = stackalloc byte[16];
+            Span<byte> alphaIndices = stackalloc byte[16];
 
             Span<Rgba32> colors = stackalloc[]
             {
@@ -246,17 +282,7 @@ namespace XnbAnalyzer.Xnb.Content
                 new Rgba32(0x00, 0x00, 0x00, 0x00),  // transparent
             };
 
-            Span<byte> alphas = stackalloc byte[]
-            {
-                0x00,  // a0
-                0x00,  // a1
-                0x7f,  // reserved
-                0x7f,  // reserved
-                0x7f,  // reserved
-                0x7f,  // reserved
-                0x00,  // transparent
-                0xff,  // opaque
-            };
+            Span<byte> alphas = stackalloc byte[8];
 
             var blockW = (int)Math.Ceiling(width / 4.0);
             var blockH = (int)Math.Ceiling(height / 4.0);
@@ -275,17 +301,55 @@ namespace XnbAnalyzer.Xnb.Content
                 alphas[0] = alphaBlock[0];
                 alphas[1] = alphaBlock[1];
 
-                Rgb565ToRgba32(colorBlock[0..2], ref colors[0]);
-                Rgb565ToRgba32(colorBlock[2..4], ref colors[1]);
+                if (alphas[0] > alphas[1])
+                {
+                    for (var a = 0; a < 6; a++)
+                    {
+                        alphas[a + 2] = (byte)(((6 - a) * alphas[0] + (a + 1) * alphas[1]) / 7);
+                    }
+                }
+                else
+                {
+                    for (var a = 0; a < 4; a++)
+                    {
+                        alphas[a + 2] = (byte)(((4 - a) * alphas[0] + (a + 1) * alphas[1]) / 5);
+                        alphas[6] = 0x00;
+                        alphas[7] = 0xff;
+                    }
+                }
+
+                int c0, c1, c2, c3;
+                byte c3alpha;
+
+                c0 = ReadRgb565(colorBlock[0..2]);
+                c1 = ReadRgb565(colorBlock[2..4]);
+
+                if (c0 > c1)
+                {
+                    c2 = (c0 * 2 + c1 * 1) / 3;
+                    c3 = (c0 * 1 + c1 * 2) / 3;
+                    c3alpha = 0xff;
+                }
+                else
+                {
+                    c2 = (c0 + c1) / 2;
+                    c3 = 0;
+                    c3alpha = 0;
+                }
+
+                Rgb565ToRgba32(c0, ref colors[0]);
+                Rgb565ToRgba32(c1, ref colors[1]);
+                Rgb565ToRgba32(c2, ref colors[2]);
+                Rgb565ToRgba32(c3, ref colors[3], c3alpha);
 
                 var alphaData = alphaBlock[2..8];
                 var colorData = colorBlock[4..8];
 
-                var alphaPacked = ReadPackedData(alphaBlock[2..8]);
-                var colorPacked = ReadPackedData(colorBlock[4..8]);
+                ReadPackedData3bpp(alphaBlock[2..8], alphaIndices);
+                ReadPackedData2bpp(colorBlock[4..8], colorIndices);
 
                 // 16 pixels per block
-                for (var i = 0; i < 16; i++, alphaPacked >>= 3, colorPacked >>= 2)
+                for (var i = 0; i < 16; i++)
                 {
                     var x = startX + i % 4;
                     var y = startY + i / 4;
@@ -295,18 +359,8 @@ namespace XnbAnalyzer.Xnb.Content
                     }
 
                     var pixelIndex = y * width + x;
-                    var colorIndex = (int)colorPacked & 0b11;
-                    var alphaIndex = (int)alphaPacked & 0b111;
-
-                    if (colorIndex >= 2)
-                    {
-                        throw new XnbFormatException("Reserved color index used in DXT5");
-                    }
-
-                    if (alphaIndex < 0b110 && alphaIndex > 0b001)
-                    {
-                        throw new XnbFormatException("Reserved alpha index used in DXT5");
-                    }
+                    var colorIndex = colorIndices[i];
+                    var alphaIndex = alphaIndices[i];
 
                     pixels[pixelIndex] = colors[colorIndex] with { A = alphas[alphaIndex] };
                 }
