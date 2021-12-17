@@ -72,7 +72,7 @@ namespace XnbAnalyzer
                             var container = XnbContainer.ReadFromFile(entry);
                             Console.WriteLine(container);
 
-                            await container.SaveToFolderAsync(Path.Combine(unpackedDir, noExt), cancellationToken);
+                            await container.ExportAsync(Path.Combine(unpackedDir, noExt), cancellationToken);
                         }
                     }
                 }

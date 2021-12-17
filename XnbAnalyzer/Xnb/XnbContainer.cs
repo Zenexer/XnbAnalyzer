@@ -45,10 +45,18 @@ namespace XnbAnalyzer.Xnb
         {
             using var fileReader = File.OpenRead(path);
 
-            return Read(fileReader);
+            return Read(
+                fileReader,
+                // TODO: Expose an option for saving an intermediate file
+#if DEBUG
+                path + ".bin"
+#else
+                null
+#endif
+            );
         }
 
-        public static XnbContainer Read(Stream input)
+        public static XnbContainer Read(Stream input, string? intermediateFile)
         {
             var rx = new XnbStreamReader(input, true);
             MemoryStream? buffer = null;
@@ -122,8 +130,19 @@ namespace XnbAnalyzer.Xnb
                     }
 
                     buffer.Position = 0;
-
                     rx.Dispose();
+
+                    if (intermediateFile is not null)
+                    {
+                        using (var intermediate = File.OpenWrite(intermediateFile))
+                        {
+                            buffer.WriteTo(intermediate);
+                            intermediate.Flush();
+                        }
+
+                        buffer.Position = 0;
+                    }
+
                     rx = new XnbStreamReader(buffer, true);
                 }
 
@@ -157,40 +176,40 @@ namespace XnbAnalyzer.Xnb
             }
         }
 
-        public async Task SaveToFolderAsync(string dir, CancellationToken cancellationToken)
+        public async Task ExportAsync(string path, CancellationToken cancellationToken)
         {
-            Directory.CreateDirectory(dir);
-
             switch (Asset)
             {
                 case ImmutableArray<Texture> textures:
+                    Directory.CreateDirectory(path);
+
                     for (var i = 0; i < textures.Length; i++)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        await textures[i].SaveToFolderAsync(Path.Combine(dir, i.ToString()), cancellationToken);
+                        await textures[i].SaveToFolderAsync(Path.Combine(path, i.ToString()), cancellationToken);
                     }
                     break;
 
-                case Texture2D texture:
-                    await texture.SaveToFolderAsync(dir, cancellationToken);
+                case IExportable exportable:
+                    await exportable.ExportAsync(path, cancellationToken);
                     break;
 
                 case Model _:
                 case Effect _:
                 case AnimationClip _:
+                    Directory.CreateDirectory(path);
+
                     var options = new JsonSerializerOptions { WriteIndented = true };
 
-                    using (var tx = File.Create(Path.Combine(dir, Asset.GetType().Name + ".json")))
+                    using (var tx = File.Create(Path.Combine(path, Asset.GetType().Name + ".json")))
                     {
                         await JsonSerializer.SerializeAsync(tx, Asset, Asset.GetType(), options, cancellationToken);
                     }
 
                     if (!SharedResources.IsEmpty)
                     {
-                        using (var tx = File.Create(Path.Combine(dir, "SharedResources.json")))
-                        {
-                            await JsonSerializer.SerializeAsync(tx, SharedResources, options, cancellationToken);
-                        }
+                        using var tx = File.Create(Path.Combine(path, "SharedResources.json"));
+                        await JsonSerializer.SerializeAsync(tx, SharedResources, options, cancellationToken);
                     }
                     break;
 

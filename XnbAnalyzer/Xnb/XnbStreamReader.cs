@@ -48,11 +48,11 @@ namespace XnbAnalyzer.Xnb
             return value;
         }
 
-        public Vector2 ReadVector2() => new Vector2(ReadSingle(), ReadSingle());
-        public Vector3 ReadVector3() => new Vector3(ReadSingle(), ReadSingle(), ReadSingle());
-        public Vector4 ReadVector4() => new Vector4(ReadSingle(), ReadSingle(), ReadSingle(), ReadSingle());
-        public Quaternion ReadQuaternion() => new Quaternion(ReadSingle(), ReadSingle(), ReadSingle(), ReadSingle());
-        public Matrix4x4 ReadMatrix4x4() => new Matrix4x4(
+        public Vector2 ReadVector2() => new(ReadSingle(), ReadSingle());
+        public Vector3 ReadVector3() => new(ReadSingle(), ReadSingle(), ReadSingle());
+        public Vector4 ReadVector4() => new(ReadSingle(), ReadSingle(), ReadSingle(), ReadSingle());
+        public Quaternion ReadQuaternion() => new(ReadSingle(), ReadSingle(), ReadSingle(), ReadSingle());
+        public Matrix4x4 ReadMatrix4x4() => new(
             ReadSingle(),
             ReadSingle(),
             ReadSingle(),
@@ -131,6 +131,15 @@ namespace XnbAnalyzer.Xnb
             var reader = ContentTypeMapper.Instance.GetReader(this, typeDefinition);
             return reader.ReadObject();
         }
+
+        /// <summary>
+        /// Convenience method that will throw an exception if there's an encoding issue that causes a non-nullable boject to be read as null
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="propertyName"></param>
+        /// <returns></returns>
+        /// <exception cref="XnbFormatException"></exception>
+        public T ReadObjectNonNull<T>(string propertyName) => ReadObject<T>() ?? throw new XnbFormatException($"Null reflective field: {propertyName}");
 
         public T? ReadObject<T>()
         {

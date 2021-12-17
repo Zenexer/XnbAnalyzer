@@ -17,9 +17,9 @@ namespace XnbAnalyzer.Xnb.Reading.DNA
 
         public override SkinnedAnimationData Read()
         {
-            var animationClips = Rx.ReadObject<ImmutableDictionary<string, AnimationClip>>() ?? throw new XnbFormatException($"Null reflective field: {nameof(AnimationData.AnimationClips)}");
+            var animationClips = Rx.ReadObjectNonNull<ImmutableDictionary<string, AnimationClip>>(nameof(AnimationData.AnimationClips));
             var inverseBindPose = Rx.ReadObject<ImmutableArray<Matrix4x4>>();
-            var skeleton = Rx.ReadObject<Skeleton>() ?? throw new XnbFormatException($"Null reflective field: {nameof(SkinnedAnimationData.Skeleton)}");
+            var skeleton = Rx.ReadObjectNonNull<Skeleton>(nameof(SkinnedAnimationData.Skeleton));
 
             return new SkinnedAnimationData(animationClips, inverseBindPose, skeleton);
         }

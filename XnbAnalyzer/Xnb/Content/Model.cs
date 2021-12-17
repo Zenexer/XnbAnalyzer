@@ -20,7 +20,7 @@ namespace XnbAnalyzer.Xnb.Content
     );
 
     [Serializable]
-    public record  Bone(
+    public record Bone(
         string? Name,
         Matrix4x4 Transform,
         uint Parent,

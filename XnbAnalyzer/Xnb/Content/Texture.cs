@@ -8,8 +8,11 @@ using System.Threading.Tasks;
 
 namespace XnbAnalyzer.Xnb.Content
 {
-    public abstract class Texture
+    public abstract class Texture : IExportable
     {
+        public async Task ExportAsync(string path, CancellationToken cancellationToken)
+            => await SaveToFolderAsync(path, cancellationToken);
+
         public abstract Task SaveToFolderAsync(string dir, CancellationToken cancellationToken);
     }
 }
