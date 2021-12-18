@@ -20,7 +20,6 @@ namespace XnbAnalyzer.Xnb.Reading
             var width = Rx.ReadUInt32();
             var height = Rx.ReadUInt32();
             var depth = Rx.ReadUInt32();
-
             var mipCount = Rx.ReadUInt32();
 
             if (mipCount >= 32)

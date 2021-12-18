@@ -192,7 +192,7 @@ namespace XnbAnalyzer.Xnb
                     for (var i = 0; i < textures.Length; i++)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        await textures[i].SaveToFolderAsync(Path.Combine(path, i.ToString()), cancellationToken);
+                        await textures[i].ExportAsync(Path.Combine(path, i.ToString()), cancellationToken);
                     }
                     break;
 
