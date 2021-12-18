@@ -178,6 +178,12 @@ namespace XnbAnalyzer.Xnb
 
         public async Task ExportAsync(string path, CancellationToken cancellationToken)
         {
+            var parentDir = Path.GetDirectoryName(path);
+            if (parentDir is not null && !Directory.Exists(parentDir))
+            {
+                Directory.CreateDirectory(parentDir);
+            }
+
             switch (Asset)
             {
                 case ImmutableArray<Texture> textures:

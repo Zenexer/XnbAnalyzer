@@ -58,7 +58,10 @@ namespace XnbAnalyzer.Xnb.Content
 
         public override async Task SaveToFolderAsync(string dir, CancellationToken cancellationToken)
         {
-            Directory.CreateDirectory(dir);
+            if (MipImages.Length > 1)
+            {
+                Directory.CreateDirectory(dir);
+            }
 
             var layer = 0;
 
@@ -66,8 +69,7 @@ namespace XnbAnalyzer.Xnb.Content
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var name = $"{layer} - {Enum.GetName(SurfaceFormat)} - {image.Width}x{image.Height}.png";
-                var path = Path.Combine(dir, name);
+                var path = MipImages.Length > 1 ? Path.Combine(dir, $"{layer} - {Enum.GetName(SurfaceFormat)} - {image.Width}x{image.Height}.png") : $"{dir}.png";
 
                 await image.SaveAsPngAsync(path, cancellationToken);
 
@@ -78,7 +80,7 @@ namespace XnbAnalyzer.Xnb.Content
 
             if (SurfaceFormat.IsS3Tc())
             {
-                using var tx = File.Create(Path.Combine(dir, $"{layer}.dds"));
+                using var tx = File.Create($"{dir}.dds");
 
                 var buffer = new Memory<byte>(new byte[128]);
                 WriteDdsHeader(buffer.Span);
