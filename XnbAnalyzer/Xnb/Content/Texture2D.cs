@@ -20,6 +20,14 @@ namespace XnbAnalyzer.Xnb.Content
         public uint Height { get; init; }
         public ImmutableArray<ImmutableArray<byte>> MipImages { get; init; }
 
+        public Texture2D()
+        {
+            if (!BitConverter.IsLittleEndian)
+            {
+                throw new InvalidOperationException($"{nameof(Texture2D)} only supports little endian platforms");
+            }
+        }
+
         public override string ToString() =>
             $"{GetType().Name}: {Width}x{Height}, {SurfaceFormat}, {MipImages.Length} level(s)";
 
@@ -79,7 +87,7 @@ namespace XnbAnalyzer.Xnb.Content
             return image;
         }
 
-        private static int ReadRgb565(ReadOnlySpan<byte> bytes) => (bytes[0] << 8) | bytes[1];
+        private static int ReadRgb565(ReadOnlySpan<byte> bytes) => bytes[0] | (bytes[1] << 8);
 
         private static void Rgb565ToRgba32(int rgb565, ref Rgba32 rgba32, byte alpha = 0xff)
         {
@@ -97,35 +105,69 @@ namespace XnbAnalyzer.Xnb.Content
             rgba32.A = alpha;
         }
 
-        private static void ReadPackedData2bpp(ReadOnlySpan<byte> packed, Span<byte> unpacked)
+        private static void ReadPackedData2bpp2(ReadOnlySpan<byte> packed, Span<byte> unpacked)
         {
             var i = 0;
             foreach (var b in packed)
             {
-                unpacked[i++] = unchecked((byte)((b >> 6) & 0b11));
-                unpacked[i++] = unchecked((byte)((b >> 4) & 0b11));
-                unpacked[i++] = unchecked((byte)((b >> 2) & 0b11));
+                // 4-byte (32-bit) little-endian words; least significant bits in each word 
+                // 3322_1100 7766_5544, ...
                 unpacked[i++] = unchecked((byte)((b >> 0) & 0b11));
+                unpacked[i++] = unchecked((byte)((b >> 2) & 0b11));
+                unpacked[i++] = unchecked((byte)((b >> 4) & 0b11));
+                unpacked[i++] = unchecked((byte)((b >> 6) & 0b11));
+            }
+        }
+
+        private static void ReadPackedData2bpp(ReadOnlySpan<byte> packed, Span<byte> unpacked)
+        {
+            if (packed.Length % 4 != 0)
+            {
+                throw new ArgumentException($"{nameof(packed)}'s length must be a multiple of 4", nameof(packed));
+            }
+
+            var u = 0;
+            for (var p = 0; p < packed.Length; )
+            {
+                // 4-byte (32-bit) little-endian words; least-significant bits in each word are the first pixels of that word
+                var tmp = unchecked(
+                    (long)packed[p++]
+                    | ((long)packed[p++] << 8)
+                    | ((long)packed[p++] << 16)
+                    | ((long)packed[p++] << 24)
+                );
+
+                for (var i = 0; i < 16; i++, tmp >>= 2)
+                {
+                    unpacked[u++] = unchecked((byte)(tmp & 0b11));
+                }
             }
         }
 
         private static void ReadPackedData3bpp(ReadOnlySpan<byte> packed, Span<byte> unpacked)
         {
-            if (packed.Length % 3 != 0)
+            if (packed.Length % 6 != 0)
             {
-                throw new ArgumentException($"{nameof(packed)}'s length must be a multiple of 3", nameof(packed));
+                throw new ArgumentException($"{nameof(packed)}'s length must be a multiple of 6", nameof(packed));
             }
-
 
             var u = 0;
             for (var p = 0; p < packed.Length; )
             {
-                // 0001_1122 2333_4445 5566_6777
-                var tmp = unchecked((packed[p++] << 16) | (packed[p++] << 8) | packed[p++]);
+                // 6-byte (48-bit) little-endian words; least-significant bits in each word are the first pixels of that word
+                // ...999_9888 7776_6655 5444_3332 2211_1000, ...
+                var tmp = unchecked(
+                    (long)packed[p++]
+                    | ((long)packed[p++] << 8)
+                    | ((long)packed[p++] << 16)
+                    | ((long)packed[p++] << 24)
+                    | ((long)packed[p++] << 32)
+                    | ((long)packed[p++] << 40)
+                );
 
-                for (var shift = 21; shift >= 0; shift -= 3)
+                for (var i = 0; i < 16; i++, tmp >>= 3)
                 {
-                    unpacked[u++] = unchecked((byte)((tmp >> shift) & 0b111));
+                    unpacked[u++] = unchecked((byte)(tmp & 0b111));
                 }
             }
         }
@@ -240,7 +282,7 @@ namespace XnbAnalyzer.Xnb.Content
                 // 16 pixels per block
                 for (var i = 0; i < 16; i++)
                 {
-                    var x = startX + 4 - i % 4;
+                    var x = startX + i % 4;
                     var y = startY + i / 4;
                     if (x >= width || y >= height)
                     {
@@ -250,7 +292,7 @@ namespace XnbAnalyzer.Xnb.Content
                     var pixelIndex = y * width + x;
                     var colorIndex = colorIndices[i];
                     var color = colors[colorIndex];
-                    var alpha = (int)alphaBlock[7 - i / 2];
+                    var alpha = (int)alphaBlock[i / 2];
 
                     if (i % 2 == 1)
                     {
