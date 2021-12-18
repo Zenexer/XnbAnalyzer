@@ -7,7 +7,7 @@ using XnbAnalyzer.Xnb.Content.DNA;
 
 namespace XnbAnalyzer.Xnb.Reading.DNA;
 
-[Reader("DNA.Drawing.Particles.ParticleEffectASDF", "DNA.Drawing.Particles.ParticleEffect+Reader")]
+[Reader("DNA.Drawing.Particles.ParticleEffectASDF", "Microsoft.Xna.Framework.Content.ReflectiveReader`1[[DNA.Drawing.Particles.ParticleEffect]]")]
 public class ParticleEffectReader : Reader<ParticleEffect>
 {
     public ParticleEffectReader(XnbStreamReader rx) : base(rx)
