@@ -1,10 +1,12 @@
 ﻿using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -12,6 +14,9 @@ using System.Threading.Tasks;
 
 namespace XnbAnalyzer.Xnb.Content
 {
+    // Best reference I've found: https://github.com/divVerent/s2tc/wiki/FileFormats
+    // The reserved values need to be calculated per https://en.wikipedia.org/wiki/S3_Texture_Compression
+    // Also useful: https://www.khronos.org/opengl/wiki/S3_Texture_Compression
     [Serializable]
     public class Texture2D : Texture
     {
@@ -24,7 +29,7 @@ namespace XnbAnalyzer.Xnb.Content
         {
             if (!BitConverter.IsLittleEndian)
             {
-                throw new InvalidOperationException($"{nameof(Texture2D)} only supports little endian platforms");
+                throw new NotSupportedException($"{nameof(Texture2D)} only supports little endian platforms");
             }
         }
 
@@ -68,6 +73,54 @@ namespace XnbAnalyzer.Xnb.Content
 
                 layer++;
             }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (SurfaceFormat.IsS3Tc())
+            {
+                using var tx = File.Create(Path.Combine(dir, $"{layer}.dds"));
+
+                var buffer = new Memory<byte>(new byte[128]);
+                WriteDdsHeader(buffer.Span);
+
+                await tx.WriteAsync(buffer, cancellationToken);
+
+                foreach (var image in MipImages)
+                {
+                    await tx.WriteAsync(image.AsMemory(), cancellationToken);
+                }
+
+                await tx.FlushAsync();
+            }
+        }
+
+        private void WriteDdsHeader(Span<byte> bytes)
+        {
+            var surfaceFormat = SurfaceFormat switch
+            {
+                SurfaceFormat.Dxt1 => 0x31545844u,  // "DXT1"
+                SurfaceFormat.Dxt3 => 0x33545844u,  // "DXT3"
+                SurfaceFormat.Dxt5 => 0x35545844u,  // "DXT5"
+                _ => throw new InvalidOperationException(),
+            };
+
+            var uints = MemoryMarshal.Cast<byte, uint>(bytes);
+
+            uints[0 >> 2] = 0x20534444;  // "DDS "
+            uints[4 >> 2] = 0x7c;
+            uints[8 >> 2] = 0xa1007;
+            uints[12 >> 2] = Height;
+            uints[16 >> 2] = Width;
+            uints[20 >> 2] = (Width + 3) / 4 * (Height + 3) / 4 * (SurfaceFormat == SurfaceFormat.Dxt1 ? 8u : 16u);
+            uints[24 >> 2] = 0;
+            uints[28 >> 2] = (uint)MipImages.Length;
+            bytes[32..76].Fill(0);
+            uints[76 >> 2] = 0x20;
+            uints[80 >> 2] = 0x5;
+            uints[84 >> 2] = surfaceFormat;
+            bytes[88..108].Fill(0);
+            uints[27] = 0x00401008;
+            bytes[112..128].Fill(0);
         }
 
         private static Image<Rgba32> ToImage_Color(int width, int height, ReadOnlySpan<byte> data)
@@ -172,14 +225,13 @@ namespace XnbAnalyzer.Xnb.Content
             }
         }
 
-        // Best reference I've found: https://github.com/divVerent/s2tc/wiki/FileFormats
-        // The reserved values need to be calculated per https://en.wikipedia.org/wiki/S3_Texture_Compression
         private static Image<Rgba32> ToImage_Dxt1(int width, int height, ReadOnlySpan<byte> data)
         {
             var size = width * height;
             Span<Rgba32> pixels = size <= 1024 ? stackalloc Rgba32[size] : new Rgba32[size];
             Span<byte> colorIndices = stackalloc byte[16];
-            Span<Rgba32> colors = stackalloc Rgba32[4];
+            Span<Rgba32> c = stackalloc Rgba32[4];
+            c.Fill(new Rgba32(0, 0, 0));
 
             var blockW = (int)Math.Ceiling(width / 4.0);
             var blockH = (int)Math.Ceiling(height / 4.0);
@@ -194,29 +246,33 @@ namespace XnbAnalyzer.Xnb.Content
 
                 var colorBlock = data[0..8];
 
-                int c0, c1, c2, c3;
-                byte c3alpha;
+                var c0i = ReadRgb565(colorBlock[0..2]);
+                var c1i = ReadRgb565(colorBlock[2..4]);
+                Rgb565ToRgba32(c0i, ref c[0]);
+                Rgb565ToRgba32(c1i, ref c[1]);
 
-                c0 = ReadRgb565(colorBlock[0..2]);
-                c1 = ReadRgb565(colorBlock[2..4]);
-
-                if (c0 > c1)
+                if (c0i > c1i)
                 {
-                    c2 = (c0 * 2 + c1 * 1) / 3;
-                    c3 = (c0 * 1 + c1 * 2) / 3;
-                    c3alpha = 0xff;
+                    c[2].R = (byte)((c[0].R * 2 + c[1].R * 1) / 3);
+                    c[2].G = (byte)((c[0].G * 2 + c[1].G * 1) / 3);
+                    c[2].B = (byte)((c[0].B * 2 + c[1].B * 1) / 3);
+
+                    c[3].R = (byte)((c[0].R * 1 + c[1].R * 2) / 3);
+                    c[3].G = (byte)((c[0].G * 1 + c[1].G * 2) / 3);
+                    c[3].B = (byte)((c[0].B * 1 + c[1].B * 2) / 3);
+                    c[3].A = 0xff;
                 }
                 else
                 {
-                    c2 = (c0 + c1) / 2;
-                    c3 = 0;
-                    c3alpha = 0;
-                }
+                    c[2].R = (byte)((c[0].R + c[1].R) / 2);
+                    c[2].G = (byte)((c[0].G + c[1].G) / 2);
+                    c[2].B = (byte)((c[0].B + c[1].B) / 2);
 
-                Rgb565ToRgba32(c0, ref colors[0]);
-                Rgb565ToRgba32(c1, ref colors[1]);
-                Rgb565ToRgba32(c2, ref colors[2]);
-                Rgb565ToRgba32(c3, ref colors[3], c3alpha);
+                    c[3].R = 0;
+                    c[3].G = 0;
+                    c[3].B = 0;
+                    c[3].A = 0xff;  // For extended DXT1, which supports 1-bit alpha, this should be set to 0.  Not sure which XNA uses.
+                }
 
                 var colorData = colorBlock[4..8];
 
@@ -235,7 +291,7 @@ namespace XnbAnalyzer.Xnb.Content
                     var pixelIndex = y * width + x;
                     var colorIndex = colorIndices[i];
 
-                    pixels[pixelIndex] = colors[colorIndex];
+                    pixels[pixelIndex] = c[colorIndex];
                 }
             }
 
@@ -244,12 +300,12 @@ namespace XnbAnalyzer.Xnb.Content
             return Image.LoadPixelData<Rgba32>(pixels, width, height);
         }
 
-        // Best reference I've found: https://github.com/divVerent/s2tc/wiki/FileFormats
         private static Image<Rgba32> ToImage_Dxt3(int width, int height, ReadOnlySpan<byte> data)
         {
             Span<Rgba32> pixels = new Rgba32[width * height];
             Span<byte> colorIndices = stackalloc byte[16];
-            Span<Rgba32> colors = stackalloc Rgba32[4];
+            Span<Rgba32> c = stackalloc Rgba32[4];
+            c.Fill(new Rgba32(0, 0, 0));
 
             var blockW = (int)Math.Ceiling(width / 4.0);
             var blockH = (int)Math.Ceiling(height / 4.0);
@@ -265,15 +321,18 @@ namespace XnbAnalyzer.Xnb.Content
                 var alphaBlock = data[0..8];
                 var colorBlock = data[8..16];
 
-                var c0 = ReadRgb565(colorBlock[0..2]);
-                var c1 = ReadRgb565(colorBlock[2..4]);
-                var c2 = (c0 * 2 + c1 * 1) / 3;
-                var c3 = (c0 * 1 + c1 * 2) / 3;
+                var c0i = ReadRgb565(colorBlock[0..2]);
+                var c1i = ReadRgb565(colorBlock[2..4]);
+                Rgb565ToRgba32(c0i, ref c[0]);
+                Rgb565ToRgba32(c1i, ref c[1]);
 
-                Rgb565ToRgba32(c0, ref colors[0]);
-                Rgb565ToRgba32(c1, ref colors[1]);
-                Rgb565ToRgba32(c2, ref colors[2]);
-                Rgb565ToRgba32(c3, ref colors[3]);
+                c[2].R = (byte)((c[0].R * 2 + c[1].R * 1) / 3);
+                c[2].G = (byte)((c[0].G * 2 + c[1].G * 1) / 3);
+                c[2].B = (byte)((c[0].B * 2 + c[1].B * 1) / 3);
+
+                c[3].R = (byte)((c[0].R * 1 + c[1].R * 2) / 3);
+                c[3].G = (byte)((c[0].G * 1 + c[1].G * 2) / 3);
+                c[3].B = (byte)((c[0].B * 1 + c[1].B * 2) / 3);
 
                 var colorData = colorBlock[4..8];
 
@@ -291,7 +350,7 @@ namespace XnbAnalyzer.Xnb.Content
 
                     var pixelIndex = y * width + x;
                     var colorIndex = colorIndices[i];
-                    var color = colors[colorIndex];
+                    var color = c[colorIndex];
                     var alpha = (int)alphaBlock[i / 2];
 
                     if (i % 2 == 1)
@@ -309,22 +368,14 @@ namespace XnbAnalyzer.Xnb.Content
             return Image.LoadPixelData<Rgba32>(pixels, width, height);
         }
 
-        // Best reference I've found: https://github.com/divVerent/s2tc/wiki/FileFormats
         private static Image<Rgba32> ToImage_Dxt5(int width, int height, ReadOnlySpan<byte> data)
         {
             Span<Rgba32> pixels = new Rgba32[width * height];
             Span<byte> colorIndices = stackalloc byte[16];
             Span<byte> alphaIndices = stackalloc byte[16];
-
-            Span<Rgba32> colors = stackalloc[]
-            {
-                default,  // c0
-                default,  // c1
-                new Rgba32(0x00, 0xff, 0xff, 0xff),  // reserved
-                new Rgba32(0x00, 0x00, 0x00, 0x00),  // transparent
-            };
-
             Span<byte> alphas = stackalloc byte[8];
+            Span<Rgba32> c = stackalloc Rgba32[4];
+            c.Fill(new Rgba32(0, 0, 0));
 
             var blockW = (int)Math.Ceiling(width / 4.0);
             var blockH = (int)Math.Ceiling(height / 4.0);
@@ -360,29 +411,18 @@ namespace XnbAnalyzer.Xnb.Content
                     }
                 }
 
-                int c0, c1, c2, c3;
-                byte c3alpha;
+                var c0i = ReadRgb565(colorBlock[0..2]);
+                var c1i = ReadRgb565(colorBlock[2..4]);
+                Rgb565ToRgba32(c0i, ref c[0]);
+                Rgb565ToRgba32(c1i, ref c[1]);
 
-                c0 = ReadRgb565(colorBlock[0..2]);
-                c1 = ReadRgb565(colorBlock[2..4]);
+                c[2].R = (byte)((c[0].R * 2 + c[1].R * 1) / 3);
+                c[2].G = (byte)((c[0].G * 2 + c[1].G * 1) / 3);
+                c[2].B = (byte)((c[0].B * 2 + c[1].B * 1) / 3);
 
-                if (c0 > c1)
-                {
-                    c2 = (c0 * 2 + c1 * 1) / 3;
-                    c3 = (c0 * 1 + c1 * 2) / 3;
-                    c3alpha = 0xff;
-                }
-                else
-                {
-                    c2 = (c0 + c1) / 2;
-                    c3 = 0;
-                    c3alpha = 0;
-                }
-
-                Rgb565ToRgba32(c0, ref colors[0]);
-                Rgb565ToRgba32(c1, ref colors[1]);
-                Rgb565ToRgba32(c2, ref colors[2]);
-                Rgb565ToRgba32(c3, ref colors[3], c3alpha);
+                c[3].R = (byte)((c[0].R * 1 + c[1].R * 2) / 3);
+                c[3].G = (byte)((c[0].G * 1 + c[1].G * 2) / 3);
+                c[3].B = (byte)((c[0].B * 1 + c[1].B * 2) / 3);
 
                 var alphaData = alphaBlock[2..8];
                 var colorData = colorBlock[4..8];
@@ -404,7 +444,7 @@ namespace XnbAnalyzer.Xnb.Content
                     var colorIndex = colorIndices[i];
                     var alphaIndex = alphaIndices[i];
 
-                    pixels[pixelIndex] = colors[colorIndex] with { A = alphas[alphaIndex] };
+                    pixels[pixelIndex] = c[colorIndex] with { A = alphas[alphaIndex] };
                 }
             }
 
