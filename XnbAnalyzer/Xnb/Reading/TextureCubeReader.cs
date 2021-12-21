@@ -3,19 +3,20 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using XnbAnalyzer.Xnb.Content;
 
 namespace XnbAnalyzer.Xnb.Reading;
 
 [Reader("Microsoft.Xna.Framework.Graphics.TextureCube", "Microsoft.Xna.Framework.Content.TextureCubeReader")]
-public class TextureCubeReader : Reader<TextureCube>
+public class TextureCubeReader : AsyncReader<TextureCube>
 {
     public TextureCubeReader(XnbStreamReader rx) : base(rx)
     {
     }
 
-    public override TextureCube Read()
+    public override async ValueTask<TextureCube> ReadAsync(CancellationToken cancellationToken)
     {
         var surfaceFormat = Rx.ReadSurfaceFormat();
         var size = Rx.ReadUInt32();
@@ -37,9 +38,9 @@ public class TextureCubeReader : Reader<TextureCube>
                 throw new XnbFormatException("Mipmap is excessively large");
             }
 
-            var imageData = Rx.ReadBytes((int)dataSize).ToImmutableArray();
-
-            mipImages[i] = imageData;
+            var bytes = new byte[dataSize];
+            await Rx.ReadBytesAsync(bytes, cancellationToken);
+            mipImages[i] = bytes.ToImmutableArray();
         }
 
         return new TextureCube

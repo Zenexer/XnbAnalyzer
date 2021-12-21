@@ -4,19 +4,20 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using XnbAnalyzer.Xnb.Content;
 
 namespace XnbAnalyzer.Xnb.Reading
 {
     [Reader("Microsoft.Xna.Framework.Graphics.Model", "Microsoft.Xna.Framework.Content.ModelReader")]
-    public class ModelReader : Reader<Model>
+    public class ModelReader : AsyncReader<Model>
     {
         public ModelReader(XnbStreamReader rx) : base(rx)
         {
         }
 
-        public override Model Read()
+        public override async ValueTask<Model> ReadAsync(CancellationToken cancellationToken)
         {
             var boneCount = Rx.ReadUInt32();
             var transforms = new (string? Name, Matrix4x4 Transform)[boneCount];
@@ -26,7 +27,7 @@ namespace XnbAnalyzer.Xnb.Reading
 
             for (var boneId = 0; boneId < boneCount; boneId++)
             {
-                transforms[boneId] = (Rx.ReadObject<string>(), Rx.ReadMatrix4x4());
+                transforms[boneId] = (await Rx.ReadObjectAsync<string>(cancellationToken), Rx.ReadMatrix4x4());
             }
 
             for (var boneId = 0; boneId < boneCount; boneId++)
@@ -52,10 +53,10 @@ namespace XnbAnalyzer.Xnb.Reading
             var meshes = new Mesh[meshCount];
             for (var meshId = 0; meshId < meshCount; meshId++)
             {
-                var name = Rx.ReadObject<string>();
+                var name = await Rx.ReadObjectAsync<string>(cancellationToken);
                 var parent = readBoneRef();
-                var boundingSphere = Rx.ReadDirect<BoundingSphere>();
-                var tag = Rx.ReadObject();
+                var boundingSphere = await Rx.ReadDirectAsync<BoundingSphere>(cancellationToken);
+                var tag = await Rx.ReadObjectAsync(cancellationToken);
                 var partCount = Rx.ReadUInt32();
                 var parts = new MeshPart[partCount];
 
@@ -66,7 +67,7 @@ namespace XnbAnalyzer.Xnb.Reading
                         Rx.ReadUInt32(),
                         Rx.ReadUInt32(),
                         Rx.ReadUInt32(),
-                        Rx.ReadObject(),
+                        await Rx.ReadObjectAsync(cancellationToken),
                         Rx.ReadSharedResourceRef<VertexBuffer>(),
                         Rx.ReadSharedResourceRef<IndexBuffer>(),
                         Rx.ReadSharedResourceRef<Effect>()
@@ -77,7 +78,7 @@ namespace XnbAnalyzer.Xnb.Reading
             }
 
             var rootBone = readBoneRef();
-            var modelTag = Rx.ReadObject();
+            var modelTag = await Rx.ReadObjectAsync(cancellationToken);
 
             return new Model(bones.ToImmutableArray(), meshes.ToImmutableArray(), rootBone, modelTag);
         }

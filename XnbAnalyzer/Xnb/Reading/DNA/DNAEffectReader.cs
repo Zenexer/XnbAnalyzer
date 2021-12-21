@@ -11,7 +11,7 @@ using XnbAnalyzer.Xnb.Content.DNA;
 namespace XnbAnalyzer.Xnb.Reading.DNA
 {
     [Reader("DNA.Drawing.Effects.DNAEffect", "DNA.Drawing.Effects.DNAEffect+Reader")]
-    public class DNAEffectReader : Reader<DNAEffect>
+    public class DNAEffectReader : SyncReader<DNAEffect>
     {
         public DNAEffectReader(XnbStreamReader rx) : base(rx) { }
 

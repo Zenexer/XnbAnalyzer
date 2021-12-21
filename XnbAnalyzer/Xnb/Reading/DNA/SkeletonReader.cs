@@ -10,7 +10,7 @@ using XnbAnalyzer.Xnb.Content.DNA;
 namespace XnbAnalyzer.Xnb.Reading.DNA
 {
     [Reader("DNA.Drawing.Skeleton", "DNA.Drawing.Skeleton+Reader")]
-    public class SkeletonReader : Reader<Skeleton>
+    public class SkeletonReader : SyncReader<Skeleton>
     {
         public SkeletonReader(XnbStreamReader rx) : base(rx)
         {

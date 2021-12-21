@@ -8,7 +8,7 @@ using XnbAnalyzer.Xnb.Content;
 namespace XnbAnalyzer.Xnb.Reading
 {
     [Reader("XnbAnalyzer.Xnb.Content.ExternalReference`1", "Microsoft.Xna.Framework.Content.ExternalReferenceReader")]
-    public class ExternalReferenceReader<T> : Reader<ExternalReference<T>>
+    public class ExternalReferenceReader<T> : SyncReader<ExternalReference<T>>
     {
         public ExternalReferenceReader(XnbStreamReader rx) : base(rx) { }
 

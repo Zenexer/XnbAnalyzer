@@ -7,7 +7,10 @@ using System.Threading.Tasks;
 
 namespace XnbAnalyzer.Xnb.Writing
 {
-    public abstract class Writer
+    public interface IWriter { }
+    public interface IWriter<T> { }
+
+    public abstract class Writer : IWriter
     {
         protected XnbStreamWriter Tx { get; }
 
@@ -17,7 +20,7 @@ namespace XnbAnalyzer.Xnb.Writing
         }
     }
 
-    public abstract class Writer<T> : Writer
+    public abstract class Writer<T> : Writer, IWriter<T>
     {
         public Writer(XnbStreamWriter tx)
             : base(tx) { }

@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using XnbAnalyzer.Xnb.Content;
 using XnbAnalyzer.Xnb.Reading;
@@ -16,9 +18,16 @@ namespace XnbAnalyzer.Xnb
     {
         private TypeReaderCollection? _typeReaders;
         private TypeReaderCollection TypeDefinitions => _typeReaders ?? throw new Exception("Neglected to read type reader definitions before reading objects");
+        public string ContentRoot { get; }
+        public string AssetName { get; }
+        public string ReferenceRoot => Path.GetDirectoryName(Path.Combine(ContentRoot, AssetName)) ?? throw new InvalidOperationException();
 
-
-        public XnbStreamReader(Stream input, bool leaveOpen) : base(input, Encoding.UTF8, leaveOpen) { }
+        public XnbStreamReader(string contentRoot, string assetName, Stream input, bool leaveOpen)
+            : base(input, Encoding.UTF8, leaveOpen)
+        {
+            ContentRoot = contentRoot;
+            AssetName = assetName;
+        }
 
         protected static T AssertEnumExists<T>(T value, bool allowDefault) where T : struct, Enum
         {
@@ -53,6 +62,19 @@ namespace XnbAnalyzer.Xnb
             }
 
             return value;
+        }
+
+        public async ValueTask ReadBytesAsync(Memory<byte> bytes, CancellationToken cancellationToken)
+        {
+            var length = 0;
+            int read;
+
+            do
+            {
+                read = await BaseStream.ReadAsync(bytes[length..], cancellationToken);
+                length += read;
+            }
+            while (read > 0);
         }
 
         public nint ReadNativeInt() => ReadUnmanaged<nint>();
@@ -145,7 +167,7 @@ namespace XnbAnalyzer.Xnb
             return TypeDefinitions[typeIndex];
         }
 
-        public object? ReadObject()
+        public async ValueTask<object?> ReadObjectAsync(CancellationToken cancellationToken)
         {
             if (ReadObjectHeader() is not { } typeDefinition)
             {
@@ -153,7 +175,7 @@ namespace XnbAnalyzer.Xnb
             }
 
             var reader = ContentTypeMapper.Instance.GetReader(this, typeDefinition);
-            return reader.ReadObject();
+            return await reader.ReadObjectAsync(cancellationToken);
         }
 
         /// <summary>
@@ -163,13 +185,14 @@ namespace XnbAnalyzer.Xnb
         /// <param name="propertyName"></param>
         /// <returns></returns>
         /// <exception cref="XnbFormatException"></exception>
-        public T ReadObjectNonNull<T>(string propertyName) => ReadObject<T>() ?? throw new XnbFormatException($"Null reflective field: {propertyName}");
+        public async ValueTask<T> ReadObjectNonNullAsync<T>(string propertyName, CancellationToken cancellationToken)
+            => await ReadObjectAsync<T>(cancellationToken) ?? throw new XnbFormatException($"Null reflective field: {propertyName}");
 
-        public T? ReadObject<T>()
+        public async ValueTask<T?> ReadObjectAsync<T>(CancellationToken cancellationToken)
         {
             if (typeof(T).IsValueType && typeof(T).Name != "ImmutableArray`1")
             {
-                return ReadDirect<T>();
+                return await ReadDirectAsync<T>(cancellationToken);
             }
 
             if (ReadObjectHeader() is not { } typeDefinition)
@@ -179,17 +202,34 @@ namespace XnbAnalyzer.Xnb
 
             var type = ContentTypeMapper.Instance.GetContentType(typeDefinition);
 
+            if (type == typeof(ExternalReference<>))
+            {
+                var externalReference = await ContentTypeMapper.Instance.GetReader<ExternalReference<T>>(this).ReadAsync(cancellationToken);
+                var path = GetPathToReference(externalReference.AssetName) + ".xnb";
+                var container = await XnbContainer.ReadFromFileAsync(ContentRoot, path, cancellationToken);
+                var asset = container.Asset;
+
+                if (asset is not T typedAsset)
+                {
+                    throw new XnbFormatException($"Expected external reference {externalReference.AssetName} to be of type {typeof(T).FullName}, but got {asset?.GetType().FullName ?? "null"}");
+                }
+
+                return typedAsset;
+            }
+
             if (!type.IsAssignableTo(typeof(T)))
             {
                 throw new XnbFormatException($"Expected to read {typeof(T).FullName}, but got {type.FullName}");
             }
 
-            return (T?)ContentTypeMapper.Instance.GetReader(this, typeDefinition).ReadObject();
+            return (T?)await ContentTypeMapper.Instance.GetReader(this, typeDefinition).ReadObjectAsync(cancellationToken);
         }
 
-        public T ReadDirect<T>()
+        public async ValueTask<T> ReadDirectAsync<T>(CancellationToken cancellationToken)
         {
-            return ContentTypeMapper.Instance.GetReader<T>(this).Read();
+            return await ContentTypeMapper.Instance.GetReader<T>(this).ReadAsync(cancellationToken);
         }
+
+        public string GetPathToReference(string referenceName) => Path.Combine(ReferenceRoot, referenceName);
     }
 }

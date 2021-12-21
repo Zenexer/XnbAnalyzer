@@ -9,6 +9,7 @@
 		<WarningLevel>5</WarningLevel>
 		<EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
 		<StartupObject>XnbAnalyzer.Program</StartupObject>
+		<Platforms>AnyCPU;x64</Platforms>
 	</PropertyGroup>
 
 	<ItemGroup>

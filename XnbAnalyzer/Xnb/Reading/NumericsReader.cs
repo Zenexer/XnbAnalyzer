@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace XnbAnalyzer.Xnb.Reading
 {
     [Reader("Microsoft.Xna.Framework.Vector2", "Microsoft.Xna.Framework.Content.Vector2Reader")]
-    public class Vector2Reader : Reader<Vector2>
+    public class Vector2Reader : SyncReader<Vector2>
     {
         public Vector2Reader(XnbStreamReader rx) : base(rx) { }
 
@@ -16,7 +16,7 @@ namespace XnbAnalyzer.Xnb.Reading
     }
 
     [Reader("Microsoft.Xna.Framework.Vector3", "Microsoft.Xna.Framework.Content.Vector3Reader")]
-    public class Vector3Reader : Reader<Vector3>
+    public class Vector3Reader : SyncReader<Vector3>
     {
         public Vector3Reader(XnbStreamReader rx) : base(rx) { }
 
@@ -24,7 +24,7 @@ namespace XnbAnalyzer.Xnb.Reading
     }
 
     [Reader("Microsoft.Xna.Framework.Vector4", "Microsoft.Xna.Framework.Content.Vector4Reader")]
-    public class Vector4Reader : Reader<Vector4>
+    public class Vector4Reader : SyncReader<Vector4>
     {
         public Vector4Reader(XnbStreamReader rx) : base(rx) { }
 
@@ -32,7 +32,7 @@ namespace XnbAnalyzer.Xnb.Reading
     }
 
     [Reader("Microsoft.Xna.Framework.Quaternion", "Microsoft.Xna.Framework.Content.QuaternionReader")]
-    public class QuaternionReader : Reader<Quaternion>
+    public class QuaternionReader : SyncReader<Quaternion>
     {
         public QuaternionReader(XnbStreamReader rx) : base(rx) { }
 
@@ -40,7 +40,7 @@ namespace XnbAnalyzer.Xnb.Reading
     }
 
     [Reader("Microsoft.Xna.Framework.Matrix", "Microsoft.Xna.Framework.Content.MatrixReader")]
-    public class MatrixReader : Reader<Matrix4x4>
+    public class MatrixReader : SyncReader<Matrix4x4>
     {
         public MatrixReader(XnbStreamReader rx)
             : base(rx) { }

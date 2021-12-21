@@ -8,7 +8,7 @@ using XnbAnalyzer.Xnb.Content;
 namespace XnbAnalyzer.Xnb.Reading;
 
 [Reader("Microsoft.Xna.Framework.BasicEffect", "Microsoft.Xna.Framework.Content.BasicEffectReader")]
-public class BasicEffectReader : Reader<BasicEffect>
+public class BasicEffectReader : SyncReader<BasicEffect>
 {
     public BasicEffectReader(XnbStreamReader rx) : base(rx)
     {

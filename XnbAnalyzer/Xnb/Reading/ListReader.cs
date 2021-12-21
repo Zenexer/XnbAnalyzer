@@ -3,16 +3,17 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace XnbAnalyzer.Xnb.Reading;
 
 [Reader("System.Collections.Generic.List`1", "Microsoft.Xna.Framework.Content.ListReader`1")]
-public class ListReader<T> : Reader<ImmutableList<T?>>
+public class ListReader<T> : AsyncReader<ImmutableList<T?>>
 {
     public ListReader(XnbStreamReader rx) : base(rx) { }
 
-    public override ImmutableList<T?> Read()
+    public override async ValueTask<ImmutableList<T?>> ReadAsync(CancellationToken cancellationToken)
     {
         var count = Rx.ReadUInt32();
 
@@ -20,7 +21,7 @@ public class ListReader<T> : Reader<ImmutableList<T?>>
 
         for (var i = 0; i < count; i++)
         {
-            array[i] = Rx.ReadObject<T?>();
+            array[i] = await Rx.ReadObjectAsync<T?>(cancellationToken);
         }
 
         return array.ToImmutableList();

@@ -17,10 +17,10 @@ namespace XnbAnalyzer.Xnb
         private readonly Dictionary<string, string> _xnaTypeNames = new();
         private readonly HashSet<string> _primitives = new();
 
-        private readonly ConditionalWeakTable<XnbStreamReader, ConditionalWeakTable<TypeDefinition, Reader>> _readers = new();
-        private readonly ConditionalWeakTable<XnbStreamWriter, ConditionalWeakTable<TypeDefinition, Writer>> _writers = new();
-        private readonly ConditionalWeakTable<XnbStreamReader, ConditionalWeakTable<Type, Reader>> _genericReaders = new();
-        private readonly ConditionalWeakTable<XnbStreamWriter, ConditionalWeakTable<Type, Writer>> _genericWriters = new();
+        private readonly ConditionalWeakTable<XnbStreamReader, ConditionalWeakTable<TypeDefinition, IReader>> _readers = new();
+        private readonly ConditionalWeakTable<XnbStreamWriter, ConditionalWeakTable<TypeDefinition, IWriter>> _writers = new();
+        private readonly ConditionalWeakTable<XnbStreamReader, ConditionalWeakTable<Type, IReader>> _genericReaders = new();
+        private readonly ConditionalWeakTable<XnbStreamWriter, ConditionalWeakTable<Type, IWriter>> _genericWriters = new();
         private readonly ConditionalWeakTable<object, ConditionalWeakTable<Type, object>> _instances = new();
 
         public static ContentTypeMapper Instance { get; } = new ContentTypeMapper();
@@ -38,17 +38,18 @@ namespace XnbAnalyzer.Xnb
                         continue;
                     }
 
-                    var (expectedBaseType, map) = rw switch
+                    var (expectedInterfaceType, map) = rw switch
                     {
-                        ReaderAttribute _ => (typeof(Reader<>), _readerTypes),
-                        WriterAttribute _ => (typeof(Writer<>), _writerTypes),
+                        ReaderAttribute _ => (typeof(IReader<>), _readerTypes),
+                        WriterAttribute _ => (typeof(IWriter<>), _writerTypes),
                         _ => throw new Exception(),
                     };
 
-                    var baseType = type.BaseType;
-                    if (baseType?.GetGenericTypeDefinition() != expectedBaseType)
+                    var iface = type.GetInterface(expectedInterfaceType.FullName ?? throw new InvalidOperationException("Expected interface type to have a name"));
+
+                    if (iface?.GetGenericTypeDefinition() != expectedInterfaceType)
                     {
-                        throw new Exception($"Expected reader to implement {expectedBaseType.FullName}");
+                        throw new Exception($"Expected {type.FullName} to implement {expectedInterfaceType.FullName}");
                     }
 
                     var generic = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
@@ -57,7 +58,7 @@ namespace XnbAnalyzer.Xnb
 
                     if (!_contentTypes.ContainsKey(rw.TargetType))
                     {
-                        var contentType = baseType.GenericTypeArguments[0];
+                        var contentType = iface.GenericTypeArguments[0];
                         if (contentType.IsGenericType)
                         {
                             contentType = contentType.GetGenericTypeDefinition();
@@ -125,10 +126,10 @@ namespace XnbAnalyzer.Xnb
         public Type GetWriterType<T>() => ResolveGenerics<T>(_writerTypes[_xnaTypeNames[typeof(T).GetGenericName()]]);
         public Type GetReaderType<T>() => ResolveGenerics<T>(_readerTypes[_xnaTypeNames[typeof(T).GetGenericName()]]);
 
-        public Reader GetReader(XnbStreamReader rx, TypeDefinition definition) => _readers.GetOrCreateValue(rx).GetValue(definition, _ => (Reader)GetOrInstantiate(rx, GetReaderType(definition)));
-        public Writer GetWriter(XnbStreamWriter tx, TypeDefinition definition) => _writers.GetOrCreateValue(tx).GetValue(definition, _ => (Writer)GetOrInstantiate(tx, GetWriterType(definition)));
+        public IReader GetReader(XnbStreamReader rx, TypeDefinition definition) => _readers.GetOrCreateValue(rx).GetValue(definition, _ => (IReader)GetOrInstantiate(rx, GetReaderType(definition)));
+        public IWriter GetWriter(XnbStreamWriter tx, TypeDefinition definition) => _writers.GetOrCreateValue(tx).GetValue(definition, _ => (IWriter)GetOrInstantiate(tx, GetWriterType(definition)));
 
-        public Reader<T> GetReader<T>(XnbStreamReader rx) => (Reader<T>)_genericReaders.GetOrCreateValue(rx).GetValue(typeof(T), _ => (Reader)GetOrInstantiate(rx, GetReaderType<T>()));
-        public Writer<T> GetWriter<T>(XnbStreamWriter tx) => (Writer<T>)_genericWriters.GetOrCreateValue(tx).GetValue(typeof(T), _ => (Writer)GetOrInstantiate(tx, GetWriterType<T>()));
+        public IReader<T> GetReader<T>(XnbStreamReader rx) => (IReader<T>)_genericReaders.GetOrCreateValue(rx).GetValue(typeof(T), _ => (IReader)GetOrInstantiate(rx, GetReaderType<T>()));
+        public IWriter<T> GetWriter<T>(XnbStreamWriter tx) => (IWriter<T>)_genericWriters.GetOrCreateValue(tx).GetValue(typeof(T), _ => (IWriter)GetOrInstantiate(tx, GetWriterType<T>()));
     }
 }

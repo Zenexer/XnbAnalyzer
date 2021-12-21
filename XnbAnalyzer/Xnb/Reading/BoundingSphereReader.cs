@@ -9,7 +9,7 @@ using XnbAnalyzer.Xnb.Content;
 namespace XnbAnalyzer.Xnb.Reading
 {
     [Reader("Microsoft.Xna.Framework.BoundingSphere", "Microsoft.Xna.Framework.Content.BoundingSphereReader")]
-    public class BoundingSphereReader : Reader<BoundingSphere>
+    public class BoundingSphereReader : SyncReader<BoundingSphere>
     {
         public BoundingSphereReader(XnbStreamReader rx) : base(rx)
         {

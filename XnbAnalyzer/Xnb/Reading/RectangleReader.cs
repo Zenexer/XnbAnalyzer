@@ -8,7 +8,7 @@ using XnbAnalyzer.Xnb.Content;
 namespace XnbAnalyzer.Xnb.Reading;
 
 [Reader("Microsoft.Xna.Framework.Rectangle", "Microsoft.Xna.Framework.Content.RectangleReader")]
-public class RectangleReader : Reader<Rectangle>
+public class RectangleReader : SyncReader<Rectangle>
 {
     public RectangleReader(XnbStreamReader rx) : base(rx)
     {

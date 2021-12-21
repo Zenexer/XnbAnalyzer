@@ -10,7 +10,7 @@ using XnbAnalyzer.Xnb.Content.DNA;
 namespace XnbAnalyzer.Xnb.Reading.DNA
 {
     [Reader("DNA.Drawing.Animation.AnimationClip", "DNA.Drawing.Animation.AnimationClip+Reader")]
-    public class AnimationClipReader : Reader<AnimationClip>
+    public class AnimationClipReader : SyncReader<AnimationClip>
     {
         public AnimationClipReader(XnbStreamReader rx) : base(rx)
         {

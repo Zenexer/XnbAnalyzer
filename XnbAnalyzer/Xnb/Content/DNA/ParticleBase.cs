@@ -49,7 +49,9 @@ public record class ParticleBase<T>(
     public async Task ExportAsync(string path, CancellationToken cancellationToken)
     {
         // TODO: Export metadata
-        await Texture.ExportAsync(Path.Combine(path, "Texture"), cancellationToken);
+
+        var texturePath = Path.Combine(path, "Texture");
+        Directory.CreateDirectory(texturePath);
+        await Texture.ExportAsync(texturePath, cancellationToken);
     }
 }
-

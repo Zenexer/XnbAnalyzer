@@ -4,7 +4,7 @@ using XnbAnalyzer.Xnb.Content;
 namespace XnbAnalyzer.Xnb.Reading;
 
 [Reader("Microsoft.Xna.Framework.Color", "Microsoft.Xna.Framework.Content.ColorReader")]
-public class ColorReader : Reader<Color>
+public class ColorReader : SyncReader<Color>
 {
     public ColorReader(XnbStreamReader rx) : base(rx)
     {

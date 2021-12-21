@@ -5,15 +5,14 @@ using System.Text;
 using System.Threading.Tasks;
 using XnbAnalyzer.Xnb.Content;
 
-namespace XnbAnalyzer.Xnb.Reading
-{
-    [Reader("Microsoft.Xna.Framework.Graphics.Texture", "Microsoft.Xna.Framework.Content.TextureReader")]
-    public class TextureReader : Reader<Texture>
-    {
-        public TextureReader(XnbStreamReader rx) : base(rx)
-        {
-        }
+namespace XnbAnalyzer.Xnb.Reading;
 
-        public override Texture Read() => throw new Exception("Logic issue");
+[Reader("Microsoft.Xna.Framework.Graphics.Texture", "Microsoft.Xna.Framework.Content.TextureReader")]
+public class TextureReader : SyncReader<Texture>
+{
+    public TextureReader(XnbStreamReader rx) : base(rx)
+    {
     }
+
+    public override Texture Read() => throw new Exception("Logic issue");
 }

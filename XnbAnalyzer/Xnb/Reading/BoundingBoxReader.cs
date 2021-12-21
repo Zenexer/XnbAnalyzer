@@ -8,7 +8,7 @@ using XnbAnalyzer.Xnb.Content;
 namespace XnbAnalyzer.Xnb.Reading;
 
 [Reader("Microsoft.Xna.Framework.BoundingBox", "Microsoft.Xna.Framework.Content.BoundingBoxReader")]
-public class BoundingBoxReader : Reader<BoundingBox>
+public class BoundingBoxReader : SyncReader<BoundingBox>
 {
     public BoundingBoxReader(XnbStreamReader rx) : base(rx)
     {

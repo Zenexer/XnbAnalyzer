@@ -1,7 +1,9 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using XnbAnalyzer.Xnb;
@@ -41,11 +43,17 @@ namespace XnbAnalyzer
                 public async Task OnExecuteAsync(CancellationToken cancellationToken)
                     => await UnpackFolderAsync(
                         InputDir ?? throw new NullReferenceException(nameof(InputDir)),
+                        InputDir,
                         OutputDir ?? throw new NullReferenceException(nameof(OutputDir)),
                         cancellationToken
                     );
 
-                public async Task UnpackFolderAsync(string packedDir, string unpackedDir, CancellationToken cancellationToken)
+                public async Task UnpackFolderAsync(string contentRoot, string packedDir, string unpackedDir, CancellationToken cancellationToken)
+                {
+                    await Task.WhenAll(UnpackFolderTasksAsync(contentRoot, packedDir, unpackedDir, cancellationToken));
+                }
+
+                private IEnumerable<Task> UnpackFolderTasksAsync(string contentRoot, string packedDir, string unpackedDir, CancellationToken cancellationToken)
                 {
                     if (!Directory.Exists(packedDir))
                     {
@@ -64,17 +72,24 @@ namespace XnbAnalyzer
                         {
                             if (IsRecursive)
                             {
-                                await UnpackFolderAsync(entry, Path.Combine(unpackedDir, name), cancellationToken);
+                                yield return UnpackFolderAsync(contentRoot, entry, Path.Combine(unpackedDir, name), cancellationToken);
                             }
                         }
                         else if (".xnb".Equals(ext, StringComparison.InvariantCultureIgnoreCase))
                         {
-                            var container = XnbContainer.ReadFromFile(entry);
-                            Console.WriteLine(container);
-
-                            await container.ExportAsync(Path.Combine(unpackedDir, noExt), cancellationToken);
+                            yield return UnpackFileAsync(contentRoot, entry, Path.Combine(unpackedDir, noExt), cancellationToken);
                         }
                     }
+                }
+
+                private async Task UnpackFileAsync(string contentRoot, string packedFile, string unpackedFile, CancellationToken cancellationToken)
+                {
+                    var assetPath = Path.GetRelativePath(contentRoot, packedFile);
+                    var container = await XnbContainer.ReadFromFileAsync(contentRoot, assetPath, cancellationToken);
+                    Console.WriteLine(container);
+                    Console.WriteLine();
+
+                    await container.ExportAsync(unpackedFile, cancellationToken);
                 }
             }
         }

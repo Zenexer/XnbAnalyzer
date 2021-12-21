@@ -9,7 +9,7 @@ using XnbAnalyzer.Xnb.Content;
 namespace XnbAnalyzer.Xnb.Reading
 {
     [Reader("Microsoft.Xna.Framework.Graphics.Effect", "Microsoft.Xna.Framework.Content.EffectReader")]
-    public class EffectReader : Reader<Effect>
+    public class EffectReader : SyncReader<Effect>
     {
         public EffectReader(XnbStreamReader rx) : base(rx)
         {

@@ -9,7 +9,7 @@ using XnbAnalyzer.Xnb.Content;
 namespace XnbAnalyzer.Xnb.Reading
 {
     [Reader("Microsoft.Xna.Framework.Graphics.IndexBuffer", "Microsoft.Xna.Framework.Content.IndexBufferReader")]
-    public class IndexBufferReader : Reader<IndexBuffer>
+    public class IndexBufferReader : SyncReader<IndexBuffer>
     {
         public IndexBufferReader(XnbStreamReader rx) : base(rx)
         {

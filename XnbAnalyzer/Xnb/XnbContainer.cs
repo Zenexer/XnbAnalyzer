@@ -28,6 +28,7 @@ namespace XnbAnalyzer.Xnb
 
         public override string? ToString() => string.Join("\n", new[]
         {
+            $"AssetType = {Asset?.GetType().FullName ?? "(null)"}",
             $"TargetPlatform = {TargetPlatform}",
             $"FormatVersion = {FormatVersion}",
             $"Flags = {Flags}",
@@ -41,28 +42,34 @@ namespace XnbAnalyzer.Xnb
             },
         });
 
-        public static XnbContainer ReadFromFile(string path)
+        public static async Task<XnbContainer> ReadFromFileAsync(string contentRoot, string assetPath, CancellationToken cancellationToken)
         {
-            using var fileReader = File.OpenRead(path);
+            contentRoot = Path.GetFullPath(contentRoot);
+            var assetName = Path.ChangeExtension(assetPath, null);
 
-            return Read(
+            using var fileReader = File.OpenRead(Path.Combine(contentRoot, assetPath));
+
+            return await ReadAsync(
+                contentRoot,
+                assetName,
                 fileReader,
                 // TODO: Expose an option for saving an intermediate file
 #if DEBUG
-                path + ".bin"
+                Path.Combine(contentRoot, assetPath + ".bin"),
 #else
-                null
+                null,
 #endif
+                cancellationToken
             );
         }
 
-        public static XnbContainer Read(Stream input, string? intermediateFile)
+        // TODO Make the rest of this async
+        public static async Task<XnbContainer> ReadAsync(string contentRoot, string assetName, Stream input, string? intermediateFile, CancellationToken cancellationToken)
         {
-            var rx = new XnbStreamReader(input, true);
+            var rx = new XnbStreamReader(contentRoot, assetName, input, true);
             MemoryStream? buffer = null;
             try
             {
-
                 var magic = (rx.ReadByte(), rx.ReadByte(), rx.ReadByte());
 
                 if (magic != Magic)
@@ -136,24 +143,24 @@ namespace XnbAnalyzer.Xnb
                     {
                         using (var intermediate = File.OpenWrite(intermediateFile))
                         {
-                            buffer.WriteTo(intermediate);
+                            await buffer.CopyToAsync(intermediate, cancellationToken);
                             intermediate.Flush();
                         }
 
                         buffer.Position = 0;
                     }
 
-                    rx = new XnbStreamReader(buffer, true);
+                    rx = new XnbStreamReader(contentRoot, assetName, buffer, true);
                 }
 
                 var typeReaders = rx.ReadTypeReaderCollection();
                 var sharedResourceCount = rx.Read7BitEncodedInt();
-                var asset = rx.ReadObject();
+                var asset = await rx.ReadObjectAsync(cancellationToken);
 
                 var sharedResources = new object?[sharedResourceCount];
                 for (var i = 0; i < sharedResourceCount; i++)
                 {
-                    sharedResources[i] = rx.ReadObject();
+                    sharedResources[i] = await rx.ReadObjectAsync(cancellationToken);
                 }
 
                 return new XnbContainer
