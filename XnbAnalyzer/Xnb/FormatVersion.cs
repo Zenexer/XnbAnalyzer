@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace XnbAnalyzer.Xnb
 {
-    public enum FormatVersion
+    public enum FormatVersion : byte
     {
         Unknown = 0,
         XnaGameStudio4 = 5,

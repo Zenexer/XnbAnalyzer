@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 namespace XnbAnalyzer.Xnb.Content.DNA;
 
 [Serializable]
-public class ParticleEffect
+public record class ParticleEffect : ParticleBase<Texture2D>
 {
+    public ParticleEffect(ParticleBase<Texture2D> original) : base(original)
+    {
+    }
 }

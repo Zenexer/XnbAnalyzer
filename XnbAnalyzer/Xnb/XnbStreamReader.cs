@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using XnbAnalyzer.Xnb.Content;
@@ -18,7 +20,7 @@ namespace XnbAnalyzer.Xnb
 
         public XnbStreamReader(Stream input, bool leaveOpen) : base(input, Encoding.UTF8, leaveOpen) { }
 
-        protected T AssertEnumExists<T>(T value, bool allowDefault) where T : struct, Enum
+        protected static T AssertEnumExists<T>(T value, bool allowDefault) where T : struct, Enum
         {
             if (!Enum.IsDefined(value))
             {
@@ -33,9 +35,14 @@ namespace XnbAnalyzer.Xnb
             return value;
         }
 
-        protected T AssertFlagsExist<T>(T value) where T : struct, Enum
+        protected static T AssertFlagsExist<T>(T value, bool allowDefault = true) where T : struct, Enum
         {
             var intVal = Convert.ToInt32(value);
+            if (!allowDefault && intVal == 0)
+            {
+                throw new XnbFormatException($"{typeof(T).FullName} must not be {value}");
+            }
+
             var unknownFlags = intVal & ~Enum.GetValues<T>()
                 .Select(x => Convert.ToInt32(x))
                 .Aggregate((a, b) => a | b);
@@ -48,6 +55,8 @@ namespace XnbAnalyzer.Xnb
             return value;
         }
 
+        public nint ReadNativeInt() => ReadUnmanaged<nint>();
+        public nuint ReadNativeUInt() => ReadUnmanaged<nuint>();
         public Vector2 ReadVector2() => new(ReadSingle(), ReadSingle());
         public Vector3 ReadVector3() => new(ReadSingle(), ReadSingle(), ReadSingle());
         public Vector4 ReadVector4() => new(ReadSingle(), ReadSingle(), ReadSingle(), ReadSingle());
@@ -71,15 +80,30 @@ namespace XnbAnalyzer.Xnb
             ReadSingle()
         );
 
-        public TargetPlatform ReadTargetPlatform() => AssertEnumExists((TargetPlatform)ReadByte(), false);
+        private T ReadUnmanaged<T>() where T : unmanaged
+        {
+            Span<T> value = stackalloc T[1];
+            Read(MemoryMarshal.AsBytes(value));
+            return value[0];
+        }
 
-        public FormatVersion ReadFormatVersion() => AssertEnumExists((FormatVersion)ReadByte(), false);
+        public T ReadEnum<T>(bool isFlagType, bool allowDefault)
+            where T : unmanaged, Enum
+        {
+            var value = ReadUnmanaged<T>();
 
-        public XnbFlags ReadXnbFlags() => AssertFlagsExist((XnbFlags)ReadByte());
+            return isFlagType ? AssertFlagsExist(value, allowDefault) : AssertEnumExists(value, allowDefault);
+        }
+
+        public TargetPlatform ReadTargetPlatform() => ReadEnum<TargetPlatform>(false, false);
+
+        public FormatVersion ReadFormatVersion() => ReadEnum<FormatVersion>(false, false);
+
+        public XnbFlags ReadXnbFlags() => ReadEnum<XnbFlags>(true, true);
 
         public SurfaceFormat ReadSurfaceFormat() => AssertEnumExists((SurfaceFormat)ReadInt32(), true);
 
-        public TypeDefinition ReadTypeReaderDefinition() => new TypeDefinition(ReadString(), ReadInt32());
+        public TypeDefinition ReadTypeReaderDefinition() => new(ReadString(), ReadInt32());
 
         public TypeReaderCollection ReadTypeReaderCollection()
         {
@@ -93,9 +117,9 @@ namespace XnbAnalyzer.Xnb
             return _typeReaders = new TypeReaderCollection(definitions);
         }
 
-        public SharedResourceRef<T> ReadSharedResourceRef<T>() => new SharedResourceRef<T>(Read7BitEncodedInt());
+        public SharedResourceRef<T> ReadSharedResourceRef<T>() => new(Read7BitEncodedInt());
 
-        public ExternalReference<T> ReadExternalReference<T>() => new ExternalReference<T>(ReadString());
+        public ExternalReference<T> ReadExternalReference<T>() => new(ReadString());
 
         public TypeDefinition? ReadObjectHeader()
         {
