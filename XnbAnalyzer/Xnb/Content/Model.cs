@@ -9,42 +9,41 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace XnbAnalyzer.Xnb.Content
-{
-    [Serializable]
-    public record Model(
-        ImmutableArray<Bone> Bones,
-        ImmutableArray<Mesh> Meshes,
-        uint RootBoneId,
-        object? Tag
-    );
+namespace XnbAnalyzer.Xnb.Content;
 
-    [Serializable]
-    public record Bone(
-        string? Name,
-        Matrix4x4 Transform,
-        uint Parent,
-        ImmutableArray<uint> Children
-    );
+[Serializable]
+public record Model(
+    ImmutableArray<Bone> Bones,
+    ImmutableArray<Mesh> Meshes,
+    uint RootBoneId,
+    object? Tag
+);
 
-    [Serializable]
-    public record Mesh(
-        string? Name,
-        uint ParentBone,
-        BoundingSphere Bounds,
-        object? Tag,
-        ImmutableArray<MeshPart> Parts
-    );
+[Serializable]
+public record Bone(
+    string? Name,
+    Matrix4x4 Transform,
+    uint Parent,
+    ImmutableArray<uint> Children
+);
 
-    [Serializable]
-    public record MeshPart(
-        uint VertexOffset,
-        uint VertexCount,
-        uint StartIndex,
-        uint PrimitiveCount,
-        object? Tag,
-        SharedResourceRef<VertexBuffer> VertexBuffer,
-        SharedResourceRef<IndexBuffer> IndexBuffer,
-        SharedResourceRef<Effect> Effect
-    );
-}
+[Serializable]
+public record Mesh(
+    string? Name,
+    uint ParentBone,
+    BoundingSphere Bounds,
+    object? Tag,
+    ImmutableArray<MeshPart> Parts
+);
+
+[Serializable]
+public record MeshPart(
+    uint VertexOffset,
+    uint VertexCount,
+    uint StartIndex,
+    uint PrimitiveCount,
+    object? Tag,
+    SharedResourceRef<VertexBuffer> VertexBuffer,
+    SharedResourceRef<IndexBuffer> IndexBuffer,
+    SharedResourceRef<Effect> Effect
+);
