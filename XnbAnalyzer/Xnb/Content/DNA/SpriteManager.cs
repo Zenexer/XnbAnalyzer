@@ -23,10 +23,10 @@ public record class SpriteManager(ImmutableDictionary<string, Sprite> Sprites) :
             map[kv.Key] = kv.Value.SourceRectangle;
         }
 
-        var json = JsonSerializer.Serialize(map, new JsonSerializerOptions { WriteIndented = true });
+        using var jsonFile = File.Create(Path.Combine(path, "Sprites.json"));
 
         await Task.WhenAll(
-            File.WriteAllTextAsync(Path.Combine(path, "Sprites.json"), json, cancellationToken),
+            JsonSerializer.SerializeAsync(jsonFile, map, new JsonSerializerOptions { WriteIndented = true }, cancellationToken),
             Sprites.Values.First().Texture.ExportAsync(Path.Combine(path, "Texture"), cancellationToken)
         );
     }

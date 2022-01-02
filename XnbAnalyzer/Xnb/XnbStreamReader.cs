@@ -77,6 +77,16 @@ namespace XnbAnalyzer.Xnb
             while (read > 0);
         }
 
+        public async ValueTask<Memory<byte>> ReadBytesAsync(int length, CancellationToken cancellationToken)
+        {
+            var buffer = new Memory<byte>(new byte[length]);
+            await ReadBytesAsync(buffer, cancellationToken);
+            return buffer;
+        }
+
+        public ValueTask<Memory<byte>> ReadBytesAsync(uint length, CancellationToken cancellationToken)
+            => ReadBytesAsync(checked((int)length), cancellationToken);
+
         public nint ReadNativeInt() => ReadUnmanaged<nint>();
         public nuint ReadNativeUInt() => ReadUnmanaged<nuint>();
         public Vector2 ReadVector2() => new(ReadSingle(), ReadSingle());

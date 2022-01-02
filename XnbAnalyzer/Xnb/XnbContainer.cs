@@ -54,7 +54,7 @@ namespace XnbAnalyzer.Xnb
                 assetName,
                 fileReader,
                 // TODO: Expose an option for saving an intermediate file
-#if DEBUG
+#if DEBUG && false
                 Path.Combine(contentRoot, assetPath + ".bin"),
 #else
                 null,
@@ -208,7 +208,6 @@ namespace XnbAnalyzer.Xnb
                     break;
 
                 case Model _:
-                case Effect _:
                 case AnimationClip _:
                     Directory.CreateDirectory(path);
 
