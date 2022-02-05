@@ -16,7 +16,7 @@ public class DNAEffectReader : SyncReader<DNAEffect>
 {
     public DNAEffectReader(XnbStreamReader rx) : base(rx) { }
 
-    private object ReadParameterValue<T>(int valueCount, Func<T> read)
+    private EffectParameter<T> ReadParameterValue<T>(int valueCount, Func<T> read, Func<bool, T[], EffectParameter<T>> wrap)
         where T : struct
     {
         var readCount = valueCount == 0 ? 1 : valueCount;
@@ -27,7 +27,7 @@ public class DNAEffectReader : SyncReader<DNAEffect>
             values[i] = read();
         }
 
-        return valueCount == 0 ? values[0] : values.ToImmutableArray();
+        return wrap(valueCount != 0, values);
     }
 
     public override DNAEffect Read()
@@ -50,21 +50,18 @@ public class DNAEffectReader : SyncReader<DNAEffect>
             var paramName = Rx.ReadString();
             var effectValueType = (EffectValueTypes)Rx.ReadByte();
             var valueCount = Rx.ReadInt32();
-            var readCount = valueCount == 0 ? 1 : valueCount;
-            
-            var value = effectValueType switch
+
+            parameters[paramName] = effectValueType switch
             {
-                EffectValueTypes.intValue => ReadParameterValue<int>(valueCount, () => Rx.ReadInt32()),
-                EffectValueTypes.boolValue => ReadParameterValue<bool>(valueCount, () => Rx.ReadBoolean()),
-                EffectValueTypes.floatValue => ReadParameterValue<float>(valueCount, () => Rx.ReadSingle()),
-                EffectValueTypes.Vector2Value => ReadParameterValue<Vector2>(valueCount, () => Rx.ReadVector2()),
-                EffectValueTypes.Vector3Value => ReadParameterValue<Vector3>(valueCount, () => Rx.ReadVector3()),
-                EffectValueTypes.Vector4Value => ReadParameterValue<Vector4>(valueCount, () => Rx.ReadVector4()),
-                EffectValueTypes.MatrixValue => ReadParameterValue<Matrix4x4>(valueCount, () => Rx.ReadMatrix4x4()),
+                EffectValueTypes.Int32Value     => ReadParameterValue<int>(valueCount,       () => Rx.ReadInt32(),     (isArray, values) => new Int32EffectParameter(isArray, values)),
+                EffectValueTypes.BooleanValue   => ReadParameterValue<bool>(valueCount,      () => Rx.ReadBoolean(),   (isArray, values) => new BooleanEffectParameter(isArray, values)),
+                EffectValueTypes.SingleValue    => ReadParameterValue<float>(valueCount,     () => Rx.ReadSingle(),    (isArray, values) => new SingleEffectParameter(isArray, values)),
+                EffectValueTypes.Vector2Value   => ReadParameterValue<Vector2>(valueCount,   () => Rx.ReadVector2(),   (isArray, values) => new Vector2EffectParameter(isArray, values)),
+                EffectValueTypes.Vector3Value   => ReadParameterValue<Vector3>(valueCount,   () => Rx.ReadVector3(),   (isArray, values) => new Vector3EffectParameter(isArray, values)),
+                EffectValueTypes.Vector4Value   => ReadParameterValue<Vector4>(valueCount,   () => Rx.ReadVector4(),   (isArray, values) => new Vector4EffectParameter(isArray, values)),
+                EffectValueTypes.Matrix4x4Value => ReadParameterValue<Matrix4x4>(valueCount, () => Rx.ReadMatrix4x4(), (isArray, values) => new Matrix4x4EffectParameter(isArray, values)),
                 _ => throw new XnbFormatException($"Unknown {nameof(EffectValueTypes)}: {effectValueType}"),
             };
-
-            parameters[paramName] = new EffectParameter(value);
         }
 
         return new(
