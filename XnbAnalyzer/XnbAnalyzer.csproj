@@ -17,4 +17,10 @@
 		<PackageReference Include="SixLabors.ImageSharp" Version="1.0.4" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <None Remove="Fbx\" />
+	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="Fbx\" />
+	</ItemGroup>
 </Project>
