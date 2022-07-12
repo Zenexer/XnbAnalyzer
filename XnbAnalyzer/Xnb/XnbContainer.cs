@@ -23,6 +23,7 @@ namespace XnbAnalyzer.Xnb
         public XnbFlags Flags { get; set; }
         public object? Asset { get; set; }
         public ImmutableArray<object?> SharedResources { get; set; }
+        public bool IsBigEndian => TargetPlatform == TargetPlatform.Xbox360;
 
         protected XnbContainer() { }
 
@@ -78,6 +79,7 @@ namespace XnbAnalyzer.Xnb
                 }
 
                 var targetPlatform = rx.ReadTargetPlatform();
+                rx.IsBigEndian = targetPlatform == TargetPlatform.Xbox360;
                 var formatVersion = rx.ReadFormatVersion();
                 var flags = rx.ReadXnbFlags();
                 var compressedFileSize = rx.ReadUInt32();
@@ -150,7 +152,10 @@ namespace XnbAnalyzer.Xnb
                         buffer.Position = 0;
                     }
 
-                    rx = new XnbStreamReader(contentRoot, assetName, buffer, true);
+                    rx = new XnbStreamReader(contentRoot, assetName, buffer, true)
+                    {
+                        IsBigEndian = rx.IsBigEndian,
+                    };
                 }
 
                 var typeReaders = rx.ReadTypeReaderCollection();

@@ -21,6 +21,7 @@ public abstract class Texture : IExportable
     public uint Width { get; init; }
     public uint Height { get; init; }
     public ImmutableArray<ImmutableArray<byte>> MipImages { get; init; }
+    public bool IsBigEndian { get; init; }
 
     public Texture()
     {
@@ -52,10 +53,10 @@ public abstract class Texture : IExportable
 
     private Image ToImage(int width, int height, ReadOnlySpan<byte> data) => SurfaceFormat switch
     {
-        SurfaceFormat.Color => ToImage_Color(width, height, data),
-        SurfaceFormat.Dxt1 => ToImage_Dxt1(width, height, data),
-        SurfaceFormat.Dxt3 => ToImage_Dxt3(width, height, data),
-        SurfaceFormat.Dxt5 => ToImage_Dxt5(width, height, data),
+        SurfaceFormat.Color => ToImage_Color(IsBigEndian, width, height, data),
+        SurfaceFormat.Dxt1 => ToImage_Dxt1(IsBigEndian, width, height, data),
+        SurfaceFormat.Dxt3 => ToImage_Dxt3(IsBigEndian, width, height, data),
+        SurfaceFormat.Dxt5 => ToImage_Dxt5(IsBigEndian, width, height, data),
         _ => throw new NotImplementedException($"Surface format not yet implemented: {SurfaceFormat}"),
     };
     protected void WriteDdsHeader(Span<byte> bytes, uint mips)
@@ -87,7 +88,7 @@ public abstract class Texture : IExportable
         bytes[112..128].Fill(0);
     }
 
-    private static Image<Rgba32> ToImage_Color(int width, int height, ReadOnlySpan<byte> data)
+    private static Image<Rgba32> ToImage_Color(bool bigEndian, int width, int height, ReadOnlySpan<byte> data)
     {
         var image = new Image<Rgba32>(width, height);
         var i = 0;
@@ -97,7 +98,17 @@ public abstract class Texture : IExportable
             var row = image.GetPixelRowSpan(y);
             for (var x = 0; x < width; x++)
             {
-                row[x] = new Rgba32(data[i++], data[i++], data[i++], data[i++]);
+                if (bigEndian)
+                {
+                    row[x].A = data[i++];
+                    row[x].B = data[i++];
+                    row[x].G = data[i++];
+                    row[x].R = data[i++];
+                }
+                else
+                {
+                    row[x] = new Rgba32(data[i++], data[i++], data[i++], data[i++]);
+                }
             }
         }
 
@@ -189,7 +200,7 @@ public abstract class Texture : IExportable
         }
     }
 
-    private static Image<Rgba32> ToImage_Dxt1(int width, int height, ReadOnlySpan<byte> data)
+    private static Image<Rgba32> ToImage_Dxt1(bool bigEndian, int width, int height, ReadOnlySpan<byte> data)
     {
         var size = width * height;
         Span<Rgba32> pixels = size <= 1024 ? stackalloc Rgba32[size] : new Rgba32[size];
@@ -264,7 +275,7 @@ public abstract class Texture : IExportable
         return Image.LoadPixelData<Rgba32>(pixels, width, height);
     }
 
-    private static Image<Rgba32> ToImage_Dxt3(int width, int height, ReadOnlySpan<byte> data)
+    private static Image<Rgba32> ToImage_Dxt3(bool bigEndian, int width, int height, ReadOnlySpan<byte> data)
     {
         Span<Rgba32> pixels = new Rgba32[width * height];
         Span<byte> colorIndices = stackalloc byte[16];
@@ -332,7 +343,7 @@ public abstract class Texture : IExportable
         return Image.LoadPixelData<Rgba32>(pixels, width, height);
     }
 
-    private static Image<Rgba32> ToImage_Dxt5(int width, int height, ReadOnlySpan<byte> data)
+    private static Image<Rgba32> ToImage_Dxt5(bool bigEndian, int width, int height, ReadOnlySpan<byte> data)
     {
         Span<Rgba32> pixels = new Rgba32[width * height];
         Span<byte> colorIndices = stackalloc byte[16];

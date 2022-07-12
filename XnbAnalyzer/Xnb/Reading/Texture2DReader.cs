@@ -48,6 +48,7 @@ public class Texture2DReader : AsyncReader<Texture2D>
 
         return new Texture2D
         {
+            IsBigEndian = Rx.IsBigEndian,
             SurfaceFormat = surfaceFormat,
             Width = width,
             Height = height,

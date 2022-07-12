@@ -21,6 +21,7 @@ namespace XnbAnalyzer.Xnb
         public string ContentRoot { get; }
         public string AssetName { get; }
         public string ReferenceRoot => Path.GetDirectoryName(Path.Combine(ContentRoot, AssetName)) ?? throw new InvalidOperationException();
+        public bool IsBigEndian { get; set; }
 
         public XnbStreamReader(string contentRoot, string assetName, Stream input, bool leaveOpen)
             : base(input, Encoding.UTF8, leaveOpen)
